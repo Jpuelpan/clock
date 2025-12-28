@@ -2,15 +2,14 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include <stdio.h>
 #include <time.h>
-#include <unistd.h>
 
 const int GRID_COUNT = 15;
 const int W_WIDTH = 600;
 const int W_HEIGHT = 200;
 const char FONT_PATH[] = "/usr/share/fonts/TTF/IosevkaTermNerdFont-Regular.ttf";
 const float FONT_SIZE = 1000.0;
-const int SHADOW_OFFSET_X = -20;
-const int SHADOW_OFFSET_Y = -25;
+const float SHADOW_OFFSET_X = 0.6;
+const float SHADOW_OFFSET_Y = 0.8;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
@@ -34,17 +33,22 @@ void render_grid(int *width, int *height) {
   }
 }
 
-int main() {
-  bool shouldLoop = true;
+int main(int argc, char *argv[]) {
+  uint32_t win_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_TRANSPARENT |
+                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_BORDERLESS;
+
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "-fullscreen") == 0) {
+      win_flags = win_flags | SDL_WINDOW_FULLSCREEN;
+    }
+  }
+
   SDL_Init(SDL_INIT_VIDEO);
 
   if (!TTF_Init()) {
     SDL_Log("Failed to initialize SDL_ttf: %s\n", SDL_GetError());
     return 1;
   }
-
-  uint32_t win_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_TRANSPARENT |
-                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_BORDERLESS;
 
   if (!SDL_CreateWindowAndRenderer("Clock", W_WIDTH, W_HEIGHT, win_flags,
                                    &window, &renderer)) {
@@ -82,17 +86,24 @@ int main() {
     SDL_DestroySurface(text);
   }
 
-  SDL_Surface *text = TTF_RenderText_Blended(font, ":", 0, white);
-  if (!text) {
-    SDL_Log("Failed to texturize colon: %s\n", SDL_GetError());
-    return 1;
-  }
-  SDL_Texture *colon = SDL_CreateTextureFromSurface(renderer, text);
-  SDL_DestroySurface(text);
-
   int canvas_width = 0, canvas_height = 0;
 
+  bool shouldLoop = true;
   while (shouldLoop) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      switch (event.type) {
+      case SDL_EVENT_KEY_DOWN:
+        if (event.key.key == SDLK_ESCAPE) {
+          shouldLoop = false;
+        }
+        break;
+      case SDL_EVENT_QUIT:
+        shouldLoop = false;
+        break;
+      }
+    }
+
     SDL_GetRenderOutputSize(renderer, &canvas_width, &canvas_height);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0x00); // transparent window
     SDL_RenderClear(renderer);
@@ -114,49 +125,40 @@ int main() {
     shadowRect.w = rect.w;
     shadowRect.h = rect.h;
 
+    float shadow_x = ((canvas_width * SHADOW_OFFSET_X) / 100);
+    float shadow_y = ((canvas_height * SHADOW_OFFSET_Y) / 100);
+
     rect.x = col_width * 2;
-    shadowRect.x = rect.x + SHADOW_OFFSET_X;
-    shadowRect.y = rect.y + SHADOW_OFFSET_Y;
+    shadowRect.x = rect.x + shadow_x;
+    shadowRect.y = rect.y + shadow_y;
 
+    // Render shadow first
     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
-    SDL_RenderTexture(renderer, blackTextures[now_tm->tm_hour], NULL, &rect);
-
-    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
-    SDL_RenderTexture(renderer, whiteTextures[now_tm->tm_hour], NULL,
+    SDL_RenderTexture(renderer, blackTextures[now_tm->tm_hour], NULL,
                       &shadowRect);
+
+    // Render text later
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
+    SDL_RenderTexture(renderer, whiteTextures[now_tm->tm_hour], NULL, &rect);
 
     rect.x = rect.x + col_width * 4.0;
-    shadowRect.x = rect.x + SHADOW_OFFSET_X;
-    shadowRect.y = rect.y + SHADOW_OFFSET_Y;
+    shadowRect.x = rect.x + shadow_x;
+    shadowRect.y = rect.y + shadow_y;
     SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, SDL_ALPHA_OPAQUE);
-    SDL_RenderTexture(renderer, blackTextures[now_tm->tm_min], NULL, &rect);
-    SDL_RenderTexture(renderer, whiteTextures[now_tm->tm_min], NULL,
+    SDL_RenderTexture(renderer, blackTextures[now_tm->tm_min], NULL,
                       &shadowRect);
+    SDL_RenderTexture(renderer, whiteTextures[now_tm->tm_min], NULL, &rect);
 
     rect.x = rect.x + col_width * 4.0;
-    shadowRect.x = rect.x + SHADOW_OFFSET_X;
-    shadowRect.y = rect.y + SHADOW_OFFSET_Y;
+    shadowRect.x = rect.x + shadow_x;
+    shadowRect.y = rect.y + shadow_y;
     SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, SDL_ALPHA_OPAQUE);
-    SDL_RenderTexture(renderer, blackTextures[now_tm->tm_sec], NULL, &rect);
-    SDL_RenderTexture(renderer, whiteTextures[now_tm->tm_sec], NULL,
+    SDL_RenderTexture(renderer, blackTextures[now_tm->tm_sec], NULL,
                       &shadowRect);
+    SDL_RenderTexture(renderer, whiteTextures[now_tm->tm_sec], NULL, &rect);
 
     SDL_RenderPresent(renderer);
     SDL_Delay(100);
-
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      switch (event.type) {
-      case SDL_EVENT_KEY_DOWN:
-        if (event.key.key == SDLK_ESCAPE) {
-          shouldLoop = false;
-        }
-        break;
-      case SDL_EVENT_QUIT:
-        shouldLoop = false;
-        break;
-      }
-    }
   }
 
   SDL_DestroyRenderer(renderer);
