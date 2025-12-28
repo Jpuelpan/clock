@@ -33,7 +33,7 @@ bool load_font(void *buff, char *font_name, size_t buff_size) {
     return false;
   }
 
-  if (font_name == NULL) {
+  if (strlen(font_name) == 0) {
     font_name = "Mono:style=Bold";
   }
 
