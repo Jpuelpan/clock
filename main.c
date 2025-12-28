@@ -1,12 +1,12 @@
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#include <fontconfig/fontconfig.h>
 #include <stdio.h>
 #include <time.h>
 
 const int GRID_COUNT = 15;
 const int W_WIDTH = 600;
 const int W_HEIGHT = 200;
-const char FONT_PATH[] = "/usr/share/fonts/TTF/IosevkaTermNerdFont-Regular.ttf";
 const float FONT_SIZE = 1000.0;
 const float SHADOW_OFFSET_X = 0.6;
 const float SHADOW_OFFSET_Y = 0.8;
@@ -18,6 +18,48 @@ SDL_Texture *blackTextures[60];
 
 SDL_Color fgColor = {0xFF, 0xFF, 0xFF, SDL_ALPHA_OPAQUE};
 SDL_Color bgColor = {0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE};
+
+bool load_font(void *buff, char *font_name, size_t buff_size) {
+  FcConfig *config = NULL;
+
+  if (!FcInit()) {
+    printf("Failed to initialize Fontconfig\n");
+    return false;
+  }
+
+  config = FcInitLoadConfigAndFonts();
+  if (config == NULL) {
+    printf("Failed to load Fontconfig configuration\n");
+    return false;
+  }
+
+  if (font_name == NULL) {
+    font_name = "Mono:style=Bold";
+  }
+
+  FcResult result;
+  FcPattern *pat = FcNameParse((const FcChar8 *)font_name);
+
+  FcConfigSubstitute(config, pat, FcMatchKindBegin);
+  FcDefaultSubstitute(pat);
+  printf("Looking for font: %s\n", font_name);
+
+  FcPattern *font = FcFontMatch(config, pat, &result);
+  if (font) {
+    FcChar8 *file = NULL;
+    if (FcPatternGetString(font, FC_FILE, 0, &file) == FcResultMatch) {
+      memcpy(buff, file, buff_size);
+    }
+  }
+
+  FcPatternDestroy(font);
+  FcPatternDestroy(pat);
+  FcConfigDestroy(config);
+  FcFini();
+
+  printf("Font found: %s\n", (char *)buff);
+  return true;
+}
 
 void render_grid(int *width, int *height) {
   float col_width = (float)*width / (float)GRID_COUNT;
@@ -107,11 +149,15 @@ int main(int argc, char *argv[]) {
   uint32_t win_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_TRANSPARENT |
                        SDL_WINDOW_RESIZABLE | SDL_WINDOW_BORDERLESS;
 
-  bool isFullScreen = false;
+  bool is_fullscreen = false;
+  char font_name[512] = {};
+
   for (int i = 0; i < argc; i++) {
     if (strcmp(argv[i], "-fullscreen") == 0) {
       win_flags = win_flags | SDL_WINDOW_FULLSCREEN;
-      isFullScreen = true;
+      is_fullscreen = true;
+    } else if (strcmp(argv[i], "-font") == 0) {
+      memcpy(font_name, argv[i + 1], sizeof(font_name));
     }
   }
 
@@ -128,7 +174,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  TTF_Font *font = TTF_OpenFont(FONT_PATH, FONT_SIZE);
+  char font_path[100];
+  if (!load_font(&font_path, font_name, sizeof(font_path))) {
+    SDL_Log("Failed to load font\n");
+    return 1;
+  }
+
+  TTF_Font *font = TTF_OpenFont(font_path, FONT_SIZE);
   if (font == NULL) {
     SDL_Log("Failed to open font: %s\n", SDL_GetError());
     return 1;
@@ -163,11 +215,11 @@ int main(int argc, char *argv[]) {
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
       case SDL_EVENT_KEY_DOWN:
-        if (event.key.key == SDLK_ESCAPE) {
+        if (event.key.key == SDLK_ESCAPE || event.key.key == SDLK_Q) {
           shouldLoop = false;
         } else if (event.key.key == SDLK_F) {
-          isFullScreen = !isFullScreen;
-          SDL_SetWindowFullscreen(window, isFullScreen);
+          is_fullscreen = !is_fullscreen;
+          SDL_SetWindowFullscreen(window, is_fullscreen);
         }
         break;
       case SDL_EVENT_QUIT:
