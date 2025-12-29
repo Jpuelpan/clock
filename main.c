@@ -13,11 +13,10 @@ const float SHADOW_OFFSET_Y = 0.8;
 
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
-SDL_Texture *whiteTextures[60];
-SDL_Texture *blackTextures[60];
+SDL_Texture *numbers_textures[60];
 
-SDL_Color fgColor = {0xFF, 0xFF, 0xFF, SDL_ALPHA_OPAQUE};
-SDL_Color bgColor = {0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE};
+SDL_Color fg_color = {0xFF, 0xFF, 0xFF, SDL_ALPHA_OPAQUE};
+SDL_Color bg_color = {0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE};
 
 bool load_font(void *buff, char *font_name, size_t buff_size) {
   FcConfig *config = NULL;
@@ -116,12 +115,14 @@ void render_time_fragment(int *tm_part, SDL_FRect rect, int w, int h) {
   shadowRect.y = rect.y + shadow_y;
 
   // Render shadow first
-  SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
-  SDL_RenderTexture(renderer, blackTextures[*tm_part], NULL, &shadowRect);
+  SDL_SetTextureColorMod(numbers_textures[*tm_part], bg_color.r, bg_color.g,
+                         bg_color.b);
+  SDL_RenderTexture(renderer, numbers_textures[*tm_part], NULL, &shadowRect);
 
   // Render text later
-  SDL_SetRenderDrawColor(renderer, fgColor.r, fgColor.g, fgColor.b, fgColor.a);
-  SDL_RenderTexture(renderer, whiteTextures[*tm_part], NULL, &rect);
+  SDL_SetTextureColorMod(numbers_textures[*tm_part], fg_color.r, fg_color.g,
+                         fg_color.b);
+  SDL_RenderTexture(renderer, numbers_textures[*tm_part], NULL, &rect);
 }
 
 void render_time_separator(int x, float block_height, float w, float h) {
@@ -129,19 +130,23 @@ void render_time_separator(int x, float block_height, float w, float h) {
   float shadow_y = ((h * SHADOW_OFFSET_Y) / 100.0f);
 
   // Top circle
-  SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+  SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b,
+                         bg_color.a);
   draw_circle(x + shadow_x, block_height - (block_height / 9.0f) + shadow_y,
               ((w * 1.5f) / 100.0f));
 
-  SDL_SetRenderDrawColor(renderer, fgColor.r, fgColor.g, fgColor.b, fgColor.a);
+  SDL_SetRenderDrawColor(renderer, fg_color.r, fg_color.g, fg_color.b,
+                         fg_color.a);
   draw_circle(x, block_height - (block_height / 9.0f), ((w * 1.5f) / 100.0f));
 
   // Bottom circle
-  SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+  SDL_SetRenderDrawColor(renderer, bg_color.r, bg_color.g, bg_color.b,
+                         bg_color.a);
   draw_circle(x + shadow_x, block_height + (block_height / 9.0f) + shadow_y,
               ((w * 1.5f) / 100.0f));
 
-  SDL_SetRenderDrawColor(renderer, fgColor.r, fgColor.g, fgColor.b, fgColor.a);
+  SDL_SetRenderDrawColor(renderer, fg_color.r, fg_color.g, fg_color.b,
+                         fg_color.a);
   draw_circle(x, block_height + (block_height / 9.0f), ((w * 1.5f) / 100.0f));
 }
 
@@ -190,20 +195,13 @@ int main(int argc, char *argv[]) {
     char content[10];
     sprintf(content, "%02d", i);
 
-    SDL_Surface *text = TTF_RenderText_Blended(font, content, 0, fgColor);
+    SDL_Surface *text = TTF_RenderText_Blended(font, content, 0, fg_color);
     if (!text) {
       SDL_Log("Failed to texturize number: %s\n", SDL_GetError());
       return 1;
     }
 
-    whiteTextures[i] = SDL_CreateTextureFromSurface(renderer, text);
-
-    text = TTF_RenderText_Blended(font, content, 0, bgColor);
-    if (!text) {
-      SDL_Log("Failed to texturize number: %s\n", SDL_GetError());
-      return 1;
-    }
-    blackTextures[i] = SDL_CreateTextureFromSurface(renderer, text);
+    numbers_textures[i] = SDL_CreateTextureFromSurface(renderer, text);
     SDL_DestroySurface(text);
   }
 
@@ -242,9 +240,9 @@ int main(int argc, char *argv[]) {
 
     SDL_FRect rect;
     rect.x = col_width * 2;
+    rect.y = canvas_height / 2.0 - block_height / 2.0;
     rect.w = col_width * 3;
     rect.h = block_height;
-    rect.y = canvas_height / 2.0 - block_height / 2.0;
 
     rect.x = col_width * 2;
     render_time_fragment(&now_tm->tm_hour, rect, canvas_width, canvas_height);
